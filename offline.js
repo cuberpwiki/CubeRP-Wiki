@@ -1,0 +1,29 @@
+﻿{
+	"version": 1621248040,
+	"fileList": [
+		"data.js",
+		"c2runtime.js",
+		"jquery-3.4.1.min.js",
+		"offlineClient.js",
+		"images/logo1-sheet0.png",
+		"images/logo2-sheet0.png",
+		"images/ЛоготипВики-sheet0.png",
+		"images/landshaftkarti-sheet0.png",
+		"images/ВнешностьЖелтиносца-sheet0.png",
+		"images/whitelogo1-sheet0.png",
+		"images/9a414fa8b454304965065e8dd-sheet0.png",
+		"images/whitelogo2-sheet0.png",
+		"images/textbutton-sheet0.png",
+		"images/camera-sheet0.png",
+		"icon-16.png",
+		"icon-32.png",
+		"icon-114.png",
+		"icon-128.png",
+		"icon-256.png",
+		"loading-logo.png",
+		"c2mp-net.js",
+		"c2mp-peer.js",
+		"c2mp.js",
+		"waker.js"
+	]
+}
