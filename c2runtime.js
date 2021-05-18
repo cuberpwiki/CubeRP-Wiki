@@ -17283,6 +17283,108 @@ cr.plugins_.Keyboard = function(runtime)
 }());
 ;
 ;
+cr.plugins_.Kongregate = function(runtime)
+{
+	this.runtime = runtime;
+};
+(function ()
+{
+	var pluginProto = cr.plugins_.Kongregate.prototype;
+	pluginProto.Type = function(plugin)
+	{
+		this.plugin = plugin;
+		this.runtime = plugin.runtime;
+	};
+	var typeProto = pluginProto.Type.prototype;
+	typeProto.onCreate = function()
+	{
+	};
+	var kongregate = null;
+	var kRuntime = null;
+	var kInst = null;
+	var kUserID = 0;
+	var kUserName = "Guest";
+	function OnKongregateInPageLogin()
+	{
+		kUserID = kongregate["services"]["getUserId"]();
+		kUserName = kongregate["services"]["getUsername"]();
+		kRuntime.trigger(cr.plugins_.Kongregate.prototype.cnds.OnLogin, kInst);
+	};
+	function KongregateLoadComplete()
+	{
+		kongregate = window["kongregateAPI"]["getAPI"]();
+		kongregate["services"]["connect"]();
+		kongregate["services"]["addEventListener"]("login", OnKongregateInPageLogin);
+		kUserID = kongregate["services"]["getUserId"]();
+		kUserName = kongregate["services"]["getUsername"]();
+		if (kUserID > 0)
+			kRuntime.trigger(cr.plugins_.Kongregate.prototype.cnds.OnLogin, kInst);
+	};
+	pluginProto.Instance = function(type)
+	{
+		this.type = type;
+		this.runtime = type.runtime;
+		kRuntime = this.runtime;
+		kInst = this;
+		if (!this.runtime.isDomFree && typeof window["kongregateAPI"] !== "undefined")
+			window["kongregateAPI"]["loadAPI"](KongregateLoadComplete);
+	};
+	var instanceProto = pluginProto.Instance.prototype;
+	instanceProto.onCreate = function()
+	{
+	};
+	instanceProto.onLayoutChange = function ()
+	{
+		if (kUserID > 0)
+			kRuntime.trigger(cr.plugins_.Kongregate.prototype.cnds.OnLogin, kInst);
+	};
+	function Cnds() {};
+	Cnds.prototype.IsGuest = function ()
+	{
+		if (!kongregate)
+			return true;		// preview mode
+		return kongregate["services"]["isGuest"]();
+	};
+	Cnds.prototype.OnLogin = function ()
+	{
+		return true;
+	};
+	pluginProto.cnds = new Cnds();
+	function Acts() {};
+	Acts.prototype.ShowRegBox = function ()
+	{
+		if (kongregate && kUserID === 0)
+			kongregate["services"]["showRegistrationBox"]();
+	};
+	Acts.prototype.SubmitStat = function (name_, value_)
+	{
+		if (kongregate)
+			kongregate["stats"]["submit"](name_, value_);
+	};
+	Acts.prototype.ShowShoutBox = function (msg)
+	{
+		if (kUserID > 0)
+			kongregate["services"]["showShoutBox"](msg);
+	};
+	Acts.prototype.ShowSignInBox = function ()
+	{
+		if (kongregate && kUserID === 0)
+			kongregate["services"]["showSignInBox"]();
+	};
+	pluginProto.acts = new Acts();
+	function Exps() {};
+	Exps.prototype.UserID = function (ret)
+	{
+		ret.set_int(kUserID);
+	};
+	Exps.prototype.UserName = function (ret)
+	{
+		ret.set_string(kUserName);
+	};
+	pluginProto.exps = new Exps();
+}());
+;
+;
 cr.plugins_.List = function(runtime)
 {
 	this.runtime = runtime;
@@ -22107,6 +22209,204 @@ cr.plugins_.TextBox = function(runtime)
 }());
 ;
 ;
+cr.behaviors.Fade = function(runtime)
+{
+	this.runtime = runtime;
+};
+(function ()
+{
+	var behaviorProto = cr.behaviors.Fade.prototype;
+	behaviorProto.Type = function(behavior, objtype)
+	{
+		this.behavior = behavior;
+		this.objtype = objtype;
+		this.runtime = behavior.runtime;
+	};
+	var behtypeProto = behaviorProto.Type.prototype;
+	behtypeProto.onCreate = function()
+	{
+	};
+	behaviorProto.Instance = function(type, inst)
+	{
+		this.type = type;
+		this.behavior = type.behavior;
+		this.inst = inst;				// associated object instance to modify
+		this.runtime = type.runtime;
+	};
+	var behinstProto = behaviorProto.Instance.prototype;
+	behinstProto.onCreate = function()
+	{
+		this.activeAtStart = this.properties[0] === 1;
+		this.setMaxOpacity = false;					// used to retrieve maxOpacity once in first 'Start fade' action if initially inactive
+		this.fadeInTime = this.properties[1];
+		this.waitTime = this.properties[2];
+		this.fadeOutTime = this.properties[3];
+		this.destroy = this.properties[4];			// 0 = no, 1 = after fade out
+		this.stage = this.activeAtStart ? 0 : 3;		// 0 = fade in, 1 = wait, 2 = fade out, 3 = done
+		if (this.recycled)
+			this.stageTime.reset();
+		else
+			this.stageTime = new cr.KahanAdder();
+		this.maxOpacity = (this.inst.opacity ? this.inst.opacity : 1.0);
+		if (this.activeAtStart)
+		{
+			if (this.fadeInTime === 0)
+			{
+				this.stage = 1;
+				if (this.waitTime === 0)
+					this.stage = 2;
+			}
+			else
+			{
+				this.inst.opacity = 0;
+				this.runtime.redraw = true;
+			}
+		}
+	};
+	behinstProto.saveToJSON = function ()
+	{
+		return {
+			"fit": this.fadeInTime,
+			"wt": this.waitTime,
+			"fot": this.fadeOutTime,
+			"s": this.stage,
+			"st": this.stageTime.sum,
+			"mo": this.maxOpacity,
+		};
+	};
+	behinstProto.loadFromJSON = function (o)
+	{
+		this.fadeInTime = o["fit"];
+		this.waitTime = o["wt"];
+		this.fadeOutTime = o["fot"];
+		this.stage = o["s"];
+		this.stageTime.reset();
+		this.stageTime.sum = o["st"];
+		this.maxOpacity = o["mo"];
+	};
+	behinstProto.tick = function ()
+	{
+		this.stageTime.add(this.runtime.getDt(this.inst));
+		if (this.stage === 0)
+		{
+			this.inst.opacity = (this.stageTime.sum / this.fadeInTime) * this.maxOpacity;
+			this.runtime.redraw = true;
+			if (this.inst.opacity >= this.maxOpacity)
+			{
+				this.inst.opacity = this.maxOpacity;
+				this.stage = 1;	// wait stage
+				this.stageTime.reset();
+				this.runtime.trigger(cr.behaviors.Fade.prototype.cnds.OnFadeInEnd, this.inst);
+			}
+		}
+		if (this.stage === 1)
+		{
+			if (this.stageTime.sum >= this.waitTime)
+			{
+				this.stage = 2;	// fade out stage
+				this.stageTime.reset();
+				this.runtime.trigger(cr.behaviors.Fade.prototype.cnds.OnWaitEnd, this.inst);
+			}
+		}
+		if (this.stage === 2)
+		{
+			if (this.fadeOutTime !== 0)
+			{
+				this.inst.opacity = this.maxOpacity - ((this.stageTime.sum / this.fadeOutTime) * this.maxOpacity);
+				this.runtime.redraw = true;
+				if (this.inst.opacity < 0)
+				{
+					this.inst.opacity = 0;
+					this.stage = 3;	// done
+					this.stageTime.reset();
+					this.runtime.trigger(cr.behaviors.Fade.prototype.cnds.OnFadeOutEnd, this.inst);
+					if (this.destroy === 1)
+						this.runtime.DestroyInstance(this.inst);
+				}
+			}
+		}
+	};
+	behinstProto.doStart = function ()
+	{
+		this.stage = 0;
+		this.stageTime.reset();
+		if (this.fadeInTime === 0)
+		{
+			this.stage = 1;
+			if (this.waitTime === 0)
+				this.stage = 2;
+		}
+		else
+		{
+			this.inst.opacity = 0;
+			this.runtime.redraw = true;
+		}
+	};
+	function Cnds() {};
+	Cnds.prototype.OnFadeOutEnd = function ()
+	{
+		return true;
+	};
+	Cnds.prototype.OnFadeInEnd = function ()
+	{
+		return true;
+	};
+	Cnds.prototype.OnWaitEnd = function ()
+	{
+		return true;
+	};
+	behaviorProto.cnds = new Cnds();
+	function Acts() {};
+	Acts.prototype.StartFade = function ()
+	{
+		if (!this.activeAtStart && !this.setMaxOpacity)
+		{
+			this.maxOpacity = (this.inst.opacity ? this.inst.opacity : 1.0);
+			this.setMaxOpacity = true;
+		}
+		if (this.stage === 3)
+			this.doStart();
+	};
+	Acts.prototype.RestartFade = function ()
+	{
+		this.doStart();
+	};
+	Acts.prototype.SetFadeInTime = function (t)
+	{
+		if (t < 0)
+			t = 0;
+		this.fadeInTime = t;
+	};
+	Acts.prototype.SetWaitTime = function (t)
+	{
+		if (t < 0)
+			t = 0;
+		this.waitTime = t;
+	};
+	Acts.prototype.SetFadeOutTime = function (t)
+	{
+		if (t < 0)
+			t = 0;
+		this.fadeOutTime = t;
+	};
+	behaviorProto.acts = new Acts();
+	function Exps() {};
+	Exps.prototype.FadeInTime = function (ret)
+	{
+		ret.set_float(this.fadeInTime);
+	};
+	Exps.prototype.WaitTime = function (ret)
+	{
+		ret.set_float(this.waitTime);
+	};
+	Exps.prototype.FadeOutTime = function (ret)
+	{
+		ret.set_float(this.fadeOutTime);
+	};
+	behaviorProto.exps = new Exps();
+}());
+;
+;
 cr.behaviors.Platform = function(runtime)
 {
 	this.runtime = runtime;
@@ -23216,16 +23516,18 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.AJAX,
 	cr.plugins_.Arr,
 	cr.plugins_.Browser,
+	cr.plugins_.Kongregate,
 	cr.plugins_.Keyboard,
-	cr.plugins_.NodeWebkit,
 	cr.plugins_.List,
 	cr.plugins_.Multiplayer,
+	cr.plugins_.NodeWebkit,
 	cr.plugins_.Mouse,
+	cr.plugins_.TextBox,
 	cr.plugins_.Text,
 	cr.plugins_.Sprite,
-	cr.plugins_.TextBox,
 	cr.behaviors.scrollto,
 	cr.behaviors.Platform,
+	cr.behaviors.Fade,
 	cr.system_object.prototype.cnds.OnLayoutStart,
 	cr.plugins_.TextBox.prototype.acts.SetCSSStyle,
 	cr.plugins_.List.prototype.acts.SetCSSStyle,
@@ -23249,5 +23551,6 @@ cr.getObjectRefTable = function () { return [
 	cr.system_object.prototype.acts.GoToLayout,
 	cr.system_object.prototype.acts.GoToLayoutByName,
 	cr.plugins_.Browser.prototype.acts.GoToURL,
+	cr.behaviors.Fade.prototype.acts.StartFade,
 	cr.plugins_.List.prototype.cnds.CompareSelectedText
 ];};
